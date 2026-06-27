@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Examen Pharmacologie - INFAS</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #e9eef5;
+    color: #1f2d3d;
+}
+
+.center {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.box {
+    background: #fff;
+    padding: 25px;
+    width: 100%;
+    max-width: 600px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,.1);
+    text-align: center;
+}
+
+input, button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    box-sizing: border-box;
+}
+
+button {
+    background: #2d7ff9;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-pdf {
+    background: #e67e22;
+    margin-bottom: 10px;
+}
+
+#quiz {
+    display: none;
+    padding: 20px;
+}
+
+.top {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.progress {
+    height: 8px;
+    background: #dfe6ee;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.bar {
+    height: 100%;
+    width: 0%;
+    background: #2d7ff9;
+}
+
+.option {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #d0d7e2;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-weight: bold;
+    color: #000;
+    transition: background 0.2s;
+}
+
+.selected-opt {
+    background: #34495e !important;
+    color: #fff !important;
+    border-color: #2c3e50;
+}
+
+.correct {
+    background: #2ecc71 !important;
+    color: #fff !important;
+}
+
+.wrong {
+    background: #e74c3c !important;
+    color: #fff !important;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #e67e22;
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
+
+#btn-validate {
+    background: #27ae60;
+    display: none;
+    margin-top: 15px;
+}
+
+#pdf-template {
+    display: none;
+    padding: 40px;
+    font-family: 'Times New Roman', serif;
+    color: #000;
+}
+</style>
+</head>
+<body>
+
+<div id="login" class="center">
+    <div class="box">
+        <h2>Sujet de Pharmacologie<br><small>Licence 1 INFAS Man</small></h2>
+        <input id="name" placeholder="Nom complet de l'étudiant">
+        <button onclick="start()">Commencer l'examen</button>
+    </div>
+</div>
+
+<div id="quiz">
+    <div class="top">
+        <div id="student"></div>
+        <div id="timer"></div>
+        <div id="score">0</div>
+    </div>
+    <div class="progress">
+        <div class="bar" id="bar"></div>
+    </div>
+    <div id="quiz-type" class="badge"></div>
+    <h3 id="question"></h3>
+    <div id="options"></div>
+    <button id="btn-validate" onclick="validateQCM()">Valider la sélection</button>
+</div>
+
+<div id="pdf-template">
+    <div style="text-align: center; border: 4px double #000; padding: 30px;">
+        <h2>ATTESTATION DE REMISE DE NOTE</h2>
+        <p><i>Évaluation Numérique - Licence 1 INFAS Man</i></p>
+        <hr style="width: 80%; border: 1px solid #000;">
+        <br><br>
+        <p style="text-align: left; font-size: 18px; line-height: 2;">
+            Je soussigné, le système automatisé d'évaluation, certifie que l'étudiant(e) :<br>
+            <strong>Nom / Prénom :</strong> <span id="pdf-user"></span><br>
+            <strong>Date de composition :</strong> <span id="pdf-date"></span><br>
+            <strong>Identifiant unique de session :</strong> <span id="pdf-id"></span>
+        </p>
+        <br>
+        <div style="background: #f2f2f2; padding: 20px; border: 1px solid #000; display: inline-block; min-width: 250px;">
+            <p style="font-size: 20px; margin: 0;"><strong>SCORE FINAL :</strong> <span id="pdf-score"></span> / 40</p>
+            <p style="font-size: 22px; margin: 10px 0 0 0; color: #111;"><strong>POURCENTAGE :</strong> <span id="pdf-percent"></span>%</p>
+        </div>
+        <br><br>
+        <p style="font-size: 20px;"><strong>Mention :</strong> <span id="pdf-mention"></span></p>
+        <br><br><br>
+        <p style="text-align: right; font-size: 14px;"><i>Document authentifié électroniquement - Ne pas modifier.</i></p>
+    </div>
+</div>
+
+<script>
+const API_URL = "https://examen-sante-api.onrender.com";
+let qTime = 30;
+let answers = [];
+let selectedAnswers = []; // Stocke les choix temporaires pour les QCM
+let questions = [
+    {q:`1- Le principe actif des suspensions buvables est :`,o:[`A- Stable dans le sel`,`B- Instable dans l'eau`,`C- Stable dans le l'huile`,`D- Instable dans l'huile`],a:["B"]},
+    {q:`2- Le médicament sert à :`,o:[`A- Guérir les maladies`,`B- Autres`,`C- Prévenir les maladies`,`D- Autre`],a:["A", "C"]},
+    {q:`3- Dispenser le médicament consiste à :`,o:[`A- Donner la posologie au patient`,`B- Ne pas préciser les effets secondaires`,`C- Entreposer le médicament`,`D- Autres`],a:["A"]},
+    {q:`4- Le principe actif (PA) d'un médicament est aussi :`,o:[`A- Son nom commercial`,`B- Son nom international`,`C- Son excipient`,`D- Autre`],a:["B"]},
+    {q:`5- Dans EFFERALGAN 500 mg comprimé effervescent peut se prendre :`,o:[`A- Par voie percutanée`,`B- Par voie transmuqueuse`,`C- Par voie parentérale`,`D- Autre`],a:["D"]},
+    {q:`6- La pharmacie galénique c'est :`,o:[`A- L'étude du mode d'action du médicament`,`B- L'étude des plantes médicinales`,`C- L'étude de la forme du médicament`,`D- Autre`],a:["C"]},
+    {q:`7- Les sirops sont des préparations médicamenteuses :`,o:[`A- Saturées en eau`,`B- Saturées en sel`,`C- Saturées en lipide`,`D- Saturées en sucre`],a:["D"]},
+    {q:`8- Les suspensions buvables doivent être préparées :`,o:[`A- Après la prise du médicament`,`B- Avant la prise du médicament`,`C- Pendant la prise du médicament`,`D- Autre`],a:["B"]},
+    {q:`9- La voie parentérale c'est l'administration des médicaments par :`,o:[`E- Per os`,`F- Intra musculaire (IM)`,`G- Voie anale`,`H- Voie cutanée`],a:["F"]},
+    {q:`10- Les inconvénients de la voie PER OS sont :`,o:[`A- Inobservance du traitement à cause du goût`,`B- Antiallergique`,`C- Antiparasitaire`,`D- Impossibilité d'administration si trouble de la déglutition`],a:["A", "D"]},
+    {q:`11- Il faut la présence obligatoire d'un infirmier pour pratiquer :`,o:[`A- La voie percutanée`,`B- La voie transmuqueuse`,`C- La voie per os`,`D- Autre`],a:["D"]},
+    {q:`12- La D.C.I du médicament c'est :`,o:[`E- sa dénomination commerciale`,`F- sa dénomination commune internationale`,`G- son principe actif`,`H- Autres`],a:["F", "G"]},
+    {q:`13- L'allergie aux excipients d'un médicament est un :`,o:[`E- Effet bénéfique`,`F- Effet non voulu`,`G- Effet secondaire`,`H- Autre`],a:["F", "G"]},
+    {q:`14- En cas d'effets secondaire d'un médicament il faut :`,o:[`E- Diminution de la dose`,`F- Augmenter la dose`,`G- Changer de prescription`,`H- Autres`],a:["E", "G"]},
+    {q:`15- Dans une ordonnance médicale, il faut :`,o:[`E- La D.C.I`,`F- Le dosage`,`G- Un excipient`,`H- Le conditionnement primaire`],a:["E", "F"]},
+    {q:`16- En pharmacologie, il y a :`,o:[`E- 2 voies de prise des médicaments`,`F- 5 voies de prise des médicaments`,`G- 1 seule voie de prise des médicaments`,`H- 6 voies de prise des médicaments`],a:["F"]},
+    {q:`17- La voie parentérale concerne :`,o:[`E- La voie sous-cutanée`,`F- La voie orale`,`G- La voie intra-veineuse`,`H- La voie percutanée`],a:["E", "G"]},
+    {q:`18- La voie transmuqueuse associe :`,o:[`A- La voie oculaire`,`B- La voie rectale`,`C- La voie cutanée`,`D- La voie sublinguale`],a:["A", "B", "D"]},
+    {q:`19- La pharmacognosie est l'étude :`,o:[`I- Des plantes médicinales`,`J- Du médicament depuis son administration jusqu'à son élimination`,`K- Des bactéries`,`L- Autres`],a:["I"]},
+    {q:`20- Le principe actif (PA) d'un médicament est aussi :`,o:[`I- Son nom commercial`,`J- Son nom international`,`K- Son excipient`,`L- Autre`],a:["J"]},
+    {q:`21- L'effet indésirable d'un médicament peut être :`,o:[`E- Une pharmaco dépendance`,`F- L'indication thérapeutique`,`G- Une allergie au principe actif`,`H- Un Décès du patient`],a:["E", "G", "H"]},
+    {q:`22- La rapidité des effets du médicament est obtenue par :`,o:[`I- La voie sous-cutanée`,`J- La voie orale`,`K- La voie intra-veineuse`,`L- La voie percutanée`],a:["I", "K"]},
+    {q:`23- Le médicament sert :`,o:[`M- Seulement aux maladies humaines`,`N- Seulement aux maladies animales`,`M- A la fois aux maladies humaines et animales`,`O- Aux maladies des plantes`],a:["M"]},
+    {q:`24- Dans EFFERALGAN 500 mg :`,o:[`N- Le principe actif est paracétamol 500 milligrammes`,`I- L'acide acétylsalicylique 500 milligrammes`,`J- La carbocysteine 500 milligrammes`,`K- Autres`],a:["N"]},
+    {q:`25- Dans EFFERALGAN 500 milligrammes, le benzoate de sodium est :`,o:[`I- Le conditionnement secondaire`,`J- Le principe actif`,`K- Autre`,`L- Le conditionnement primaire`],a:["K"]},
+    {q:`26- Les formes injectables sont des préparations galéniques :`,o:[`O- Non stériles`,`P- Autres`,`Q- A inhaler`,`R- Stériles`],a:["R"]},
+    {q:`27- Dans un médicament l'eau est :`,o:[`S- Un principe actif`,`T- Un excipient`,`U- Un conditionnement`,`V- Autre`],a:["T"]},
+    {q:`28- En pharmacologie, l'IVD est aussi appelée :`,o:[`W- La voie intra veineuse`,`X- Autres`,`Y- La voie sous-`,`Z- La voie intra veineuse directe`],a:["Z"]},
+    {q:`29- Les crèmes sont des préparations :`,o:[`A- Lavables à l'eau`,`B- Non lavables à l'eau`,`C- A inhaler`,`D- Stériles`],a:["A"]},
+    {q:`30- Les médicaments magistraux sont :`,o:[`A- Des spécialités pharmaceutiques`,`B- Autres`,`C- Des médicaments officinaux`,`D- Préparés par le pharmacien ou le PGP`],a:["D"]},
+    {q:`31- Les médicaments génériques constituent :`,o:[`A- L'original d'un médicament`,`B- La DCI d'un médicament`,`C- Autre`,`D- Une copie de l'originale d'un médicament`],a:["D"]},
+    {q:`32- L'intérêt de la prescription en D.C.I c'est :`,o:[`A- D'améliorer disponibilité des médicaments`,`B- Autres`,`C- De choisir une spécialité pharmaceutique`,`D- De réduire le risque de prendre plusieurs médicaments portant des noms différents mais contenant un même principe actif`],a:["A", "D"]},
+    {q:`33- Le numéro de téléphone est :`,o:[`A- Nécessaire à inscrire sur l'ordonnance`,`B- Autres`,`E- N'est pas nécessaire à inscrire sur l'ordonnance`,`F- Permet de réduire le risque de prendre plusieurs médicaments`],a:["A"]},
+    {q:`34- La PHARMACIE est un lieu :`,o:[`A- De vente seulement des médicaments`,`B- De vente et de conseil sur les médicaments`,`G- De choix d'une spécialité pharmaceutique`,`H- De stockage des médicaments`],a:["B", "H"]},
+    {q:`35- L'arrêt définitif du traitement doit se faire :`,o:[`A- Autre`,`C- En cas d'effet curatif`,`I- En cas de prévention`,`J- En cas d'effets indésirables`],a:["J"]},
+    {q:`36- COARTEM 80 mg est :`,o:[`A- Le nom commercial d'un médicament`,`B- Autres`,`K- Une D.C.I d un médicament`,`L- Un principe actif d'un médicament`],a:["A"]},
+    {q:`37- L'alcool à 70 degrés est :`,o:[`A- Un générique`,`B- Un médicament officinal`,`M- Une spécialité pharmaceutique`,`N- Un médicament magistral`],a:["B"]},
+    {q:`38- La VENTOLINE SPRAY est à prendre par voie :`,o:[`A- Transmuqueuse`,`B- Autre`,`O- Per os`,`P- Parentérale`],a:["A", "B", "O"]},
+    {q:`39- Le paracétamol en suppositoire est destiné à être administré par voie :`,o:[`A- Vaginale`,`B- Per os`,`Q- Pulmonaire`,`R- Rectale`],a:["R"]},
+    {q:`40- La voie percutanée concerne :`,o:[`A- Les oreilles`,`B- La peau`,`S- La bouche`,`T- Les poumons`],a:["B"]}
+];
+
+questions = questions.sort(() => Math.random() - 0.5);
+let i = 0;
+let score = 0;
+let user = "";
+let lock = false;
+let interval;
+let current = 0;
+let finalNote = 0;
+let finalAppellation = "";
+
+function start() {
+    user = document.getElementById("name").value.trim();
+    if (!user) {
+        alert("Nom requis");
+        return;
+    }
+
+    let state = localStorage.getItem("status_" + user);
+    if (state === "termine" || state === "en_cours") {
+        alert("Action non autorisée : Tentative de double composition ou fraude détectée.");
+        forceFailure();
+        return;
+    }
+
+    localStorage.setItem("status_" + user, "en_cours");
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("quiz").style.display = "block";
+    document.getElementById("student").innerText = user;
+    load();
+}
+
+function forceFailure() {
+    localStorage.setItem("status_" + user, "termine");
+    score = 0;
+    finish();
+}
+
+function timer() {
+    clearInterval(interval);
+    current = qTime;
+    document.getElementById("timer").innerText = `⏱ ${current}s`;
+    interval = setInterval(() => {
+        current--;
+        document.getElementById("timer").innerText = `⏱ ${current}s`;
+        if (current <= 0) {
+            clearInterval(interval);
+            autoNext();
+        }
+    }, 1000);
+}
+
+function load() {
+    lock = false;
+    selectedAnswers = [];
+    let q = questions[i];
+    
+    // Modification dynamique du Badge en fonction du type de question
+    let typeBadge = document.getElementById("quiz-type");
+    let validateBtn = document.getElementById("btn-validate");
+    
+    if (q.a.length === 1) {
+        typeBadge.innerText = "QCD : Choix unique direct";
+        typeBadge.style.background = "#2980b9";
+        validateBtn.style.display = "none";
+    } else {
+        typeBadge.innerText = "QCM : Choix multiple (" + q.a.length + " réponses attendues)";
+        typeBadge.style.background = "#e67e22";
+        validateBtn.style.display = "block";
+    }
+
+    document.getElementById("question").innerText = q.q;
+    let box = document.getElementById("options");
+    box.innerHTML = "";
+
+    q.o.forEach(opt => {
+        let b = document.createElement("button");
+        b.className = "option";
+        b.innerText = opt;
+        b.onclick = () => selectOption(b, opt.charAt(0));
+        box.appendChild(b);
+    });
+
+    document.getElementById("bar").style.width = ((i / questions.length) * 100) + "%";
+    timer();
+}
+
+function selectOption(buttonElement, letter) {
+    if (lock) return;
+    let q = questions[i];
+
+    if (q.a.length === 1) {
+        // Mode QCD : validation instantanée
+        validateQCD(letter);
+    } else {
+        // Mode QCM : sélection multiple (on bascule la classe)
+        if (selectedAnswers.includes(letter)) {
+            selectedAnswers = selectedAnswers.filter(item => item !== letter);
+            buttonElement.classList.remove("selected-opt");
+        } else {
+            selectedAnswers.push(letter);
+            buttonElement.classList.add("selected-opt");
+        }
+    }
+}
+
+function validateQCD(val) {
+    lock = true;
+    clearInterval(interval);
+    let correctList = questions[i].a;
+    let isCorrect = correctList.includes(val);
+
+    answers.push({
+        indexQ: i,
+        question: questions[i].q,
+        correct: correctList,
+        selected: [val]
+    });
+
+    displayColors(correctList, [val]);
+
+    if (isCorrect) score++;
+    document.getElementById("score").innerText = score;
+
+    nextQuestion();
+}
+
+function validateQCM() {
+    if (lock) return;
+    if (selectedAnswers.length === 0) {
+        alert("Veuillez sélectionner au moins une option !");
+        return;
+    }
+    lock = true;
+    clearInterval(interval);
+
+    let correctList = questions[i].a;
+    
+    // On trie les tableaux pour pouvoir faire une comparaison exacte
+    let sortedCorrect = [...correctList].sort().join(",");
+    let sortedSelected = [...selectedAnswers].sort().join(",");
+    let isFullyCorrect = (sortedCorrect === sortedSelected);
+
+    answers.push({
+        indexQ: i,
+        question: questions[i].q,
+        correct: correctList,
+        selected: selectedAnswers
+    });
+
+    displayColors(correctList, selectedAnswers);
+
+    if (isFullyCorrect) {
+        score++;
+    }
+    document.getElementById("score").innerText = score;
+
+    nextQuestion();
+}
+
+function displayColors(correctList, selectedList) {
+    let buttons = document.querySelectorAll(".option");
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        let letter = btn.innerText.charAt(0);
+        
+        if (correctList.includes(letter)) {
+            btn.className = "option correct";
+        } else if (selectedList.includes(letter)) {
+            btn.className = "option wrong";
+        } else {
+            btn.className = "option";
+        }
+    });
+}
+
+function nextQuestion() {
+    setTimeout(() => {
+        i++;
+        if (i >= questions.length) {
+            finish();
+        } else {
+            load();
+        }
+    }, 1500);
+}
+
+function autoNext() {
+    lock = true;
+    let correctList = questions[i].a;
+
+    answers.push({
+        indexQ: i,
+        question: questions[i].q,
+        correct: correctList,
+        selected: []
+    });
+
+    let buttons = document.querySelectorAll(".option");
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        if (correctList.includes(btn.innerText.charAt(0))) {
+            btn.classList.add("correct");
+        }
+    });
+
+    nextQuestion();
+}
+
+function finish() {
+    clearInterval(interval);
+    localStorage.setItem("status_" + user, "termine");
+
+    finalNote = (score / questions.length) * 100;
+    finalAppellation =
+        finalNote < 30 ? "Très insuffisant" :
+        finalNote < 50 ? "Insuffisant" :
+        finalNote < 65 ? "Passable" :
+        finalNote < 75 ? "Assez bien" :
+        finalNote < 85 ? "Bien" :
+        finalNote < 95 ? "Très bien" : "Excellent";
+
+    document.body.innerHTML = `
+    <div class="center">
+        <div class="box">
+            <h2>Résultat final</h2>
+            <p><b>Étudiant :</b> ${user}</p>
+            <p><b>Score :</b> ${score}/${questions.length}</p>
+            <p><b>Pourcentage :</b> ${finalNote.toFixed(1)}%</p>
+            <h3>Avis : ${finalAppellation}</h3>
+            <p id="server-status" style="color: #f39c12; font-weight: bold;">Envoi du score au classement général...</p>
+            <button onclick="downloadPDF()" class="btn-pdf">Télécharger l'attestation officielle (PDF)</button>
+            <button onclick="showCorrection()">Voir la correction détaillée</button>
+        </div>
+    </div>`;
+
+    fetch(`${API_URL}/api/score`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            name: user,
+            score: score,
+            total: questions.length,
+            percentage: parseFloat(finalNote.toFixed(1))
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Erreur serveur");
+        return response.json();
+    })
+    .then(data => {
+        document.getElementById("server-status").innerText = "✓ Score enregistré avec succès au classement !";
+        document.getElementById("server-status").style.color = "#2ecc71";
+    })
+    .catch(error => {
+        console.error("Erreur:", error);
+        document.getElementById("server-status").innerText = "✕ Échec de l'enregistrement en ligne (Score sauvegardé en local).";
+        document.getElementById("server-status").style.color = "#e74c3c";
+    });
+}
+
+function downloadPDF() {
+    document.getElementById("pdf-user").innerText = user;
+    document.getElementById("pdf-date").innerText = new Date().toLocaleString('fr-FR');
+    document.getElementById("pdf-id").innerText = "INFAS-" + Math.floor(100000 + Math.random() * 900000);
+    document.getElementById("pdf-score").innerText = score;
+    document.getElementById("pdf-percent").innerText = finalNote.toFixed(1);
+    document.getElementById("pdf-mention").innerText = finalAppellation;
+
+    const element = document.getElementById("pdf-template");
+    element.style.display = "block";
+
+    const options = {
+        margin: 15,
+        filename: 'Attestation_Pharm_INFAS_' + user.replace(/\s+/g, '_') + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(options).from(element).save().then(() => {
+        element.style.display = "none";
+    });
+}
+
+function showCorrection() {
+    let html = `
+    <div style="padding:20px; max-width:700px; margin:0 auto; font-family:Arial, sans-serif;">
+        <h2>Correction détaillée</h2>
+    `;
+
+    answers.forEach((a, index) => {
+        let sortedCorrect = [...a.correct].sort().join(",");
+        let sortedSelected = [...a.selected].sort().join(",");
+        let isCorrect = (sortedCorrect === sortedSelected);
+        
+        let color = isCorrect ? "#d4edda" : "#f8d7da";
+        let border = isCorrect ? "1px solid #c3e6cb" : "1px solid #f5c6cb";
+
+        let originalOptions = questions[a.indexQ].o;
+        let correctTexts = originalOptions.filter(opt => a.correct.includes(opt.charAt(0))).join(' <br> ');
+
+        let fullSelectedText = "Aucune réponse (Temps écoulé)";
+        if (a.selected.length > 0) {
+            fullSelectedText = originalOptions.filter(opt => a.selected.includes(opt.charAt(0))).join(' <br> ');
+        }
+
+        html += `
+        <div style="background:${color}; border:${border}; padding:15px; margin-bottom:15px; border-radius:10px; color:#1f2d3d;">
+            <b>Question ${index + 1} (${a.correct.length === 1 ? 'QCD' : 'QCM'})</b><br><br>
+            <b>Énoncé :</b><br>
+            ${a.question}<br><br>
+            <b style="color: #1e7e34;">Bonne(s) réponse(s) attendue(s) :</b><br> ${correctTexts}<br><br>
+            <b style="color: ${isCorrect ? '#1e7e34' : '#bd2130'};">Votre sélection :</b><br> ${fullSelectedText}
+        </div>`;
+    });
+
+    html += `<br><button onclick="window.location.reload()" style="max-width:200px;">Retour à l'accueil</button></div>`;
+    document.body.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
